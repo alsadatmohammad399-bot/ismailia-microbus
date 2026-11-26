@@ -29,7 +29,7 @@ function ctex(w,h,fn,rep,srgb=true){const c=document.createElement('canvas');c.w
 function noise(g,w,h,n,a,seed){const r=rnd(seed);for(let i=0;i<n;i++){const v=Math.floor(r()*255);g.fillStyle=`rgba(${v},${v},${v},${a})`;g.fillRect(r()*w,r()*h,1+r()*2,1+r()*2)}}
 
 // ---------------- data ----------------
-const data=await (await fetch('data.json')).json();
+const data=await (await fetch('d_rest.json')).json();data.roads=[].concat(...await Promise.all([0,1,2,3].map(async i=>(await fetch('d_roads'+i+'.json')).json())));
 const BOUND={x0:-3000,x1:4200,z0:-3300,z1:3300};
 const inB=p=>p[0]>BOUND.x0&&p[0]<BOUND.x1&&p[1]>BOUND.z0&&p[1]<BOUND.z1;
 // split ways at out-of-bounds points
