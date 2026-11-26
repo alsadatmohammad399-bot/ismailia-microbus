@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 
 const $=id=>document.getElementById(id);
@@ -188,9 +189,9 @@ const terminal=(()=>{
  const tpl=makeVan();tpl.updateMatrixWorld(true);const parts=[];
  tpl.traverse(o=>{if(o.isMesh){const g=o.geometry.clone();g.applyMatrix4(o.matrixWorld);parts.push({g,m:o.material})}});
  const ims=parts.map(p=>{const im=new THREE.InstancedMesh(p.g,p.m,N);im.castShadow=false;return im});
- const dummy=new THREE.Object3D();const ang2=Math.atan2(nz,-nx);let k=0;const col=new THREE.Color();
+ const slotMats=[];let imsNow=ims;const dummy=new THREE.Object3D();const ang2=Math.atan2(nz,-nx);let k=0;const col=new THREE.Color();
  COLS.forEach((a,ci)=>{for(let r=0;r<3;r++){const b=-DEP/2+4.2+r*6.6+(R()-0.5)*0.4;const p=L(a,b+DEP/2);
-   dummy.position.set(p[0],0,p[1]);dummy.rotation.set(0,ang2,0);dummy.scale.set(1,1,1);dummy.updateMatrix();for(const im of ims)im.setMatrixAt(k,dummy.matrix);k++;
+   dummy.position.set(p[0],0,p[1]);dummy.rotation.set(0,ang2,0);dummy.scale.set(1,1,1);dummy.updateMatrix();slotMats.push(dummy.matrix.clone());for(const im of ims)im.setMatrixAt(k,dummy.matrix);k++;
    const o={x:p[0],z:p[1],hw:2.75,hd:0.95,c:nx,s:nz};blds.push(o);const bi=Math.floor(p[0]/BC),bj=Math.floor(p[1]/BC);const kk=bkey(bi,bj);let l=bGrid.get(kk);if(!l)bGrid.set(kk,l=[]);l.push(o)}});
  for(const im of ims){im.instanceMatrix.needsUpdate=true;im.frustumCulled=false;scene.add(im)}
  // destination signs on poles at the front of each column
@@ -211,7 +212,8 @@ const terminal=(()=>{
    if(d<0.5||q.w>0){q.w-=dt;P.walk=0;if(d<0.5&&q.w<=0){q.ta=(R()-0.5)*(WID-8);q.tb=1+R()*(DEP-2);q.w=R()*4}}else{q.a+=da/d*q.sp*dt;q.b+=db/d*q.sp*dt;P.walk=1;const wx=(da*ux+db*nx)/d,wz=(da*uz+db*nz)/d;P.h=Math.atan2(wx,wz)}
    const p=L(q.a,q.b);P.x=p[0];P.z=p[1]}}
  h0.pos=[C[0],C[1]];
- return {C,update,ux,uz,nx,nz}})();
+ function swapModel(np){for(const im of imsNow){scene.remove(im);im.dispose()}imsNow=np.map(p=>{const im=new THREE.InstancedMesh(p.g,p.m,N);im.frustumCulled=false;slotMats.forEach((m,i)=>im.setMatrixAt(i,m));im.instanceMatrix.needsUpdate=true;scene.add(im);return im})}
+ return {C,update,ux,uz,nx,nz,swapModel}})();
 
 // street pedestrians: walk along sidewalks near the car
 const streetPeds=[];
@@ -263,6 +265,20 @@ function makeVan(){const van=new THREE.Group();
  for(const z of [-0.7,0.7]){const r=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.04,0.04),black);r.position.set(-0.8,2.1,z);van.add(r)}
  van.userData.wheels=wheels;return van}
 const van=makeVan();scene.add(van);
+
+// ---------------- real Hiace (CC-BY, Abdelrahman Elbaqsawi), optimized ----------------
+const HIACE_FLIP=0;
+async function loadHiace(){try{let b64='';for(let i=0;i<8;i++){const r=await fetch('h'+i+'.txt');if(!r.ok)break;b64+=await r.text()}
+ if(!b64)return null;const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+ const L=new GLTFLoader();L.setMeshoptDecoder(MeshoptDecoder);const g=await new Promise((ok,no)=>L.parse(u.buffer,'',ok,no));
+ const root=g.scene;root.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(root);const len=Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z);const alongX=(bb.max.x-bb.min.x)>=(bb.max.z-bb.min.z);
+ const sc=4.75/len;const cx=(bb.max.x+bb.min.x)/2,cz=(bb.max.z+bb.min.z)/2;const parts=[];
+ const fix=new THREE.Matrix4().makeRotationY((alongX?0:Math.PI/2)+(HIACE_FLIP?Math.PI:0));
+ root.traverse(m=>{if(!m.isMesh)return;const geo=m.geometry.clone();for(const k of Object.keys(geo.attributes)){const a=geo.attributes[k];if(!(a.array instanceof Float32Array)){const f=new Float32Array(a.count*a.itemSize);for(let i=0;i<a.count;i++)for(let j=0;j<a.itemSize;j++)f[i*a.itemSize+j]=[a.getX,a.getY,a.getZ,a.getW][j].call(a,i);geo.setAttribute(k,new THREE.BufferAttribute(f,a.itemSize))}}geo.applyMatrix4(m.matrixWorld);geo.translate(-cx,-bb.min.y,-cz);geo.scale(sc,sc,sc);geo.applyMatrix4(fix);m.material.envMapIntensity=1.2;parts.push({g:geo,m:m.material})});
+ return parts}catch(e){console.log('hiace load failed',e);return null}}
+loadHiace().then(parts=>{if(!parts)return;
+ for(const c of van.children)c.visible=false;const grp=new THREE.Group();for(const p of parts){const m=new THREE.Mesh(p.g,p.m);m.castShadow=true;grp.add(m)}van.add(grp);van.userData.wheels=[];
+ terminal.swapModel(parts);window.HIACE_OK=true;console.log('hiace loaded')});
 
 // markers
 const beamMat=c=>new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.35,depthWrite:false,side:THREE.DoubleSide,fog:false});
