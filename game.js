@@ -91,19 +91,47 @@ const bayT=ctex(128,128,(g,w,h)=>{g.fillStyle='#f2efe8';g.fillRect(0,0,w,h);nois
  g.fillStyle='#d9d4c6';g.fillRect(24,18,80,6);g.fillRect(24,98,80,7);g.fillStyle='#3a3a3a';g.fillRect(20,70,88,5);for(let i=0;i<9;i++)g.fillRect(22+i*9.5,46,2,26)},[1,1]);
 const bMat=new THREE.MeshStandardMaterial({map:bayT,vertexColors:true,roughness:0.9});
 const palette=[0xe8d9b8,0xd9c9a6,0xefe3c8,0xcfbb97,0xe4cfae,0xf0e6d2,0xd6c4a1,0xc9b79a,0xe1d3bb,0xb8a98a].map(c=>new THREE.Color(c));
+// ---------------- facade styles + shop fronts ----------------
+function facadeTex(style){return ctex(128,128,(g,w,h)=>{
+ const wall=['#f1ece0','#eadfc8','#e6e2da','#efe0d0'][style];g.fillStyle=wall;g.fillRect(0,0,w,h);noise(g,w,h,2200,0.05,10+style);
+ const glass=['#3a5a78','#5b7d95','#2f4658','#6a8aa0'][style];
+ // window
+ const wx=[26,22,30,18][style],ww=[76,84,68,92][style],wy=[28,26,22,30][style],wh=[70,72,78,62][style];
+ g.fillStyle='#2b2b2b';g.fillRect(wx-3,wy-3,ww+6,wh+6);g.fillStyle=glass;g.fillRect(wx,wy,ww,wh);
+ g.fillStyle='rgba(255,255,255,.25)';g.fillRect(wx,wy,ww*0.35,wh);g.fillStyle='#444';g.fillRect(wx+ww/2-1,wy,2,wh);
+ if(style===1||style===3){g.fillStyle='#c9bfa8';g.fillRect(0,h-24,w,10);g.fillStyle='#555';for(let x=4;x<w;x+=8)g.fillRect(x,h-14,2,14);g.fillRect(0,h-14,w,2)}
+ if(style===0){g.fillStyle='#2e6b3a';g.fillRect(wx,wy,ww*0.5,wh)}// shutter
+ if(style===2){g.fillStyle='#bdb5a2';g.fillRect(0,h-6,w,6);g.fillStyle='#d8d8d8';g.fillRect(wx+ww-26,wy+wh+4,22,14)}// AC unit
+ g.fillStyle='rgba(0,0,0,.18)';g.fillRect(0,h-3,w,3);
+},null,true)}
+const facMats=[0,1,2,3].map(i=>{const t=facadeTex(i);t.wrapS=t.wrapT=THREE.RepeatWrapping;return new THREE.MeshStandardMaterial({map:t,vertexColors:true,roughness:0.9})});
+const SHOPS=[['صيدلية','#0b7a3b'],['سوبر ماركت','#c0392b'],['ملابس','#6a1b9a'],['موبايلات','#1565c0'],['مطعم','#e65100'],['كافيه','#4e342e'],['مخبز','#8d6e63'],['حلواني','#ad1457'],['مكتبة','#00695c'],['عيادة','#0277bd'],['أدوات منزلية','#455a64'],['كوافير','#880e4f'],['أحذية','#bf360c'],['عصائر','#2e7d32'],['خضار وفاكهة','#558b2f'],['مأكولات','#f57f17']];
+const shopTex=ctex(1024,512,(g,w,h)=>{SHOPS.forEach((s,i)=>{const x=(i%4)*256,y=Math.floor(i/4)*128;
+ g.fillStyle='#d9d2c0';g.fillRect(x,y,256,128);
+ g.fillStyle=s[1];g.fillRect(x+4,y+4,248,36);g.fillStyle='rgba(255,255,255,.9)';g.fillRect(x+4,y+38,248,3);
+ g.fillStyle='#fff';g.font='bold 26px Cairo,Tahoma,"Noto Kufi Arabic",sans-serif';g.textAlign='center';g.textBaseline='middle';g.direction='rtl';g.fillText(s[0],x+128,y+23);
+ g.fillStyle='#22313c';g.fillRect(x+10,y+48,150,76);g.fillStyle='rgba(255,255,255,.22)';g.fillRect(x+10,y+48,50,76);
+ g.fillStyle='#7a7a7a';g.fillRect(x+168,y+52,76,72);for(let k=0;k<8;k++){g.fillStyle=k%2?'#8d8d8d':'#6f6f6f';g.fillRect(x+168,y+52+k*9,76,5)}// shutter
+ g.fillStyle='rgba(255,230,160,.35)';g.fillRect(x+60,y+60,60,50)})},null,true);
+const shopMat=new THREE.MeshStandardMaterial({side:THREE.DoubleSide,map:shopTex,roughness:0.7,emissive:0x222018,emissiveMap:shopTex,emissiveIntensity:0.5});
+const palette2=[0xf1ece0,0xeadfc8,0xe6d3b3,0xd9b99b,0xcfd8dc,0xf0d9d0,0xe0e6c8,0xc5b8a5,0xbfc8d2,0xe8c9a0,0xf5f0e6,0xd6a98a].map(c=>new THREE.Color(c));
 const bGrid=new Map();const BC=40;const bkey=(i,j)=>i*100003+j;const blds=[];
 const R=rnd(2026);
 function roadClear(x,z,pad){const r=roadAt(x,z);return r.d>pad}
 const cells=new Map();// merged chunk buffers
 const CH=250;
-function pushBox(cx,cz,hw,hd,ang,floors,col){const h=floors*3.1+0.8;const c=Math.cos(ang),s=Math.sin(ang);
- const ck=Math.floor(cx/CH)+','+Math.floor(cz/CH);let b=cells.get(ck);if(!b){b={pos:[],nor:[],uv:[],col:[],idx:[],cx:(Math.floor(cx/CH)+.5)*CH,cz:(Math.floor(cz/CH)+.5)*CH};cells.set(ck,b)}
+function pushBox(cx,cz,hw,hd,ang,floors,col,style=0,rn=null){const h=floors*3.1+0.8;const c=Math.cos(ang),s=Math.sin(ang);
+ const ck=Math.floor(cx/CH)+','+Math.floor(cz/CH)+'|'+style;let b=cells.get(ck);if(!b){b={style,shop:{pos:[],nor:[],uv:[],idx:[]},pos:[],nor:[],uv:[],col:[],idx:[],cx:(Math.floor(cx/CH)+.5)*CH,cz:(Math.floor(cz/CH)+.5)*CH};cells.set(ck,b)}
  const corners=[[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]].map(([x,z])=>[cx+x*c-z*s,cz+x*s+z*c]);
  const faces=[[0,1],[1,2],[2,3],[3,0]];
  for(const [a,bb] of faces){const A=corners[a],B=corners[bb];const len=Math.hypot(B[0]-A[0],B[1]-A[1]);const nx=(B[1]-A[1])/len,nz=-(B[0]-A[0])/len;
   const base=b.pos.length/3;const bays=Math.max(1,Math.round(len/3.4));
   b.pos.push(A[0],0,A[1],B[0],0,B[1],B[0],h,B[1],A[0],h,A[1]);for(let k=0;k<4;k++){b.nor.push(nx,0,nz);b.col.push(col.r,col.g,col.b)}
-  b.uv.push(0,0,bays,0,bays,floors,0,floors);b.idx.push(base,base+1,base+2,base,base+2,base+3)}
+  b.uv.push(0,0,bays,0,bays,floors,0,floors);b.idx.push(base,base+1,base+2,base,base+2,base+3)
+  if(rn&&nx*rn[0]+nz*rn[1]>0.9&&len>6){const sw=Math.min(len-1,9),f0=(len-sw)/2/len,f1=1-f0;const ex=B[0]-A[0],ez=B[1]-A[1];const P1=[A[0]+ex*f0+nx*0.08,A[1]+ez*f0+nz*0.08],P2=[A[0]+ex*f1+nx*0.08,A[1]+ez*f1+nz*0.08];
+   const sc=Math.floor(R()*16),cu=(sc%4)/4,cv=1-(Math.floor(sc/4)+1)/4;const S=b.shop,sb=S.pos.length/3;
+   S.pos.push(P1[0],0.02,P1[1],P2[0],0.02,P2[1],P2[0],4.2,P2[1],P1[0],4.2,P1[1]);for(let k=0;k<4;k++)S.nor.push(nx,0,nz);
+   S.uv.push(cu+0.25,cv,cu,cv,cu,cv+0.25,cu+0.25,cv+0.25);S.idx.push(sb,sb+1,sb+2,sb,sb+2,sb+3)}}
  const base=b.pos.length/3;for(const C of corners){b.pos.push(C[0],h,C[1]);b.nor.push(0,1,0);b.col.push(col.r*0.7,col.g*0.7,col.b*0.7);b.uv.push(0.05,0.5)}
  b.idx.push(base,base+2,base+1,base,base+3,base+2);
  const o={x:cx,z:cz,hw,hd,c,s};blds.push(o);const bi=Math.floor(cx/BC),bj=Math.floor(cz/BC);const k=bkey(bi,bj);let l=bGrid.get(k);if(!l)bGrid.set(k,l=[]);l.push(o)}
@@ -124,11 +152,12 @@ for(const r of ways){if(r.w<6.5||r.t||placed>MAXB)continue;const p=r.p;let carry
     for(const o of nearBld(cx,cz,rad)){if(Math.hypot(o.x-cx,o.z-cz)<(rad+Math.hypot(o.hw,o.hd))*0.82){ok=false;break}}
     if(!ok)continue;
     const major=r.w>=10;const floors=Math.round((major?4:3)+R()*(major?6:5));
-    pushBox(cx,cz,wid/2,depth/2,ang,floors,palette[Math.floor(R()*palette.length)]);placed++}
+    pushBox(cx,cz,wid/2,depth/2,ang,floors,palette2[Math.floor(R()*palette2.length)],Math.floor(R()*4),r.w>=8.5?[-nx*side,-nz*side]:null);placed++}
   }carry=(carry+Math.ceil((L-carry)/14)*14)-L;if(carry<0)carry=0}}
 const chunkMeshes=[];
 for(const [k,b] of cells){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(b.nor,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));g.setAttribute('color',new THREE.Float32BufferAttribute(b.col,3));g.setIndex(b.idx);g.computeBoundingSphere();
- const m=new THREE.Mesh(g,bMat);m.castShadow=true;m.receiveShadow=true;scene.add(m);chunkMeshes.push({m,cx:b.cx,cz:b.cz})}
+ const m=new THREE.Mesh(g,facMats[b.style]);m.castShadow=true;m.receiveShadow=true;scene.add(m);chunkMeshes.push({m,cx:b.cx,cz:b.cz});
+ if(b.shop.pos.length){const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(b.shop.pos,3));sg.setAttribute('normal',new THREE.Float32BufferAttribute(b.shop.nor,3));sg.setAttribute('uv',new THREE.Float32BufferAttribute(b.shop.uv,2));sg.setIndex(b.shop.idx);sg.computeBoundingSphere();const sm=new THREE.Mesh(sg,shopMat);scene.add(sm);chunkMeshes.push({m:sm,cx:b.cx,cz:b.cz})}}
 console.log('buildings',placed,'chunks',chunkMeshes.length,'roads',ways.length);
 
 // ---------------- POI signs, hubs ----------------
@@ -441,7 +470,7 @@ window.__traffic=traffic;
  const cr=new THREE.InstancedMesh(crownG,new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.9,flatShading:true}),NT);
  const Rt=rnd(77);let nt=0;const M4=new THREE.Matrix4(),Q=new THREE.Quaternion(),S=new THREE.Vector3(),Pv=new THREE.Vector3(),col=new THREE.Color();
  const greens=[0x3f7a35,0x4c8a3c,0x2f6b2e,0x5f9444,0x6b9a3f];
- const addTree=(x,z,s)=>{if(nt>=NT)return;S.set(s,s*(0.9+Rt()*0.4),s);Pv.set(x,0,z);Q.setFromAxisAngle(new THREE.Vector3(0,1,0),Rt()*6);M4.compose(Pv,Q,S);tr.setMatrixAt(nt,M4);cr.setMatrixAt(nt,M4);col.setHex(greens[Math.floor(Rt()*greens.length)]);cr.setColorAt(nt,col);nt++};
+ const addTree=(x,z,s)=>{if(nt>=NT)return;s*=1.5;S.set(s,s*(0.9+Rt()*0.4),s);Pv.set(x,0,z);Q.setFromAxisAngle(new THREE.Vector3(0,1,0),Rt()*6);M4.compose(Pv,Q,S);tr.setMatrixAt(nt,M4);cr.setMatrixAt(nt,M4);col.setHex(greens[Math.floor(Rt()*greens.length)]);cr.setColorAt(nt,col);nt++};
  for(const q of ENV.green){if(q.k==='pitch')continue;const b=q.bb;const area=(b[1]-b[0])*(b[3]-b[2]);const n=Math.min(260,Math.floor(area/ (q.k==='forest'||q.k==='wood'?60:140)));for(let i=0;i<n;i++){const x=b[0]+Rt()*(b[1]-b[0]),z=b[2]+Rt()*(b[3]-b[2]);if(polyIn(q,x,z)&&roadAt(x,z).d>4)addTree(x,z,0.8+Rt()*0.7)}}
  for(const r of ways){if(r.t||r.w<8.5)continue;const p=r.p;for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];const L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<2)continue;const dx=(b[0]-a[0])/L,dz=(b[1]-a[1])/L;for(let t=4+Rt()*6;t<L;t+=17+Rt()*8){for(const side of [-1,1]){if(Rt()<0.35)continue;const o=r.w/2+2.6;const x=a[0]+dx*t-dz*side*o,z=a[1]+dz*t+dx*side*o;if(inPoly('water',x,z))continue;addTree(x,z,0.55+Rt()*0.35)}}}}
  tr.count=nt;cr.count=nt;tr.instanceMatrix.needsUpdate=true;cr.instanceMatrix.needsUpdate=true;if(cr.instanceColor)cr.instanceColor.needsUpdate=true;tr.frustumCulled=false;cr.frustumCulled=false;scene.add(tr);scene.add(cr);console.log('trees',nt);
